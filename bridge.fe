@@ -1,0 +1,660 @@
+/* Bridge.fe
+
+	Copyright (C) Mehdi Ataei
+
+	CAH implemented thanks to J. A. White guidance
+ 
+
+  Modifications by Ken Brakke, Feb. 10, 2015
+
+    Added tilt to the top plate. 
+
+*/
+
+parameter s_angle = 3  // slope in y direction of upper plate  K.B.
+    parameter incrim = 0.01 parameter top_angle_ini =
+        90  // interior initial angle between plane and surface, degrees
+    parameter bottom_angle_ini =
+        78  // interior initial angle between plane and surface, degrees
+    parameter height = 0.82  // reduced the height for stability K.B.    1.17//
+    // separation of plates
+    PARAMETER adv_up = 91.1  // Advancing angle of the upper surface in degrees
+    // - required input/.
+    PARAMETER rec_up = 76.3  // Receding angle of the upper surface in degrees -
+    // required input/.
+    PARAMETER adv_b = 91.1  // Advancing angle of the bottom surface in degrees
+    // - required input/.
+    PARAMETER rec_b = 76.3  // Receding angle of the bottom surface in degrees -
+    // required input/.
+    PARAMETER y_angle_up = 83.7 PARAMETER y_angle_b = 83.7
+
+    // breakpoint Cah 172;
+    // dsize is used to set the volume of the drop. It is the edge length of the
+    // initial cube. Thus the volume of the drop is dsize^3.
+    PARAMETER volu = 2.00
+
+#define dsize                                              \
+  (sqrt(8 * volu * slope + 4 * height ^ 2) - 2 * height) * \
+      (1 / (2 * slope)) #define slope tan(s_angle* pi / 180)
+    gravity_constant 0  // start with zero gravity
+// Contact surface tensions
+
+#define UPPERT \
+  (-cos(top_angle_ini * pi / 180))  // virtual tension of facet on plane
+#define LOWERT(-cos(bottom_angle_ini* pi / 180))
+
+    constraint 1              /* the lower plate */
+    formula : z = 0 energy :  // for contact angle
+                              e1
+    : -(LOWERT * y) e2 : 0 e3 : 0 constraint 2 /* the upper plate */
+      formula : z = height +
+                    slope *
+                        y             // add slope term  K.B.
+                            energy :  // for contact angle
+                                      e1
+    : -(UPPERT * y) *
+      sqrt(1 + slope ^ 2)  // hypotenuse length  K.B.
+      e2 : 0 e3 : 0 content : c1 : 0 c2
+    : -z *
+      x  // using y term so strips are at constant height  K.B.
+          c3 : 0
+
+      // Various element attributes are defined below.
+
+      // CA storage
+      define vertex attribute angle real
+
+          // position storage
+          define vertex attribute oldx real[3] define vertex attribute oldx2
+              real[3]
+
+      // some attribute for tweaks
+      define vertex attribute vcl_up integer
+
+          define edge attribute ecl_up integer
+
+              define facet attribute fcl_up integer
+
+                  define vertex attribute vcl_b integer define edge attribute
+                      ecl_b integer define facet attribute fcl_b integer define
+                          vertex attribute vcl integer define edge attribute ecl
+                              integer
+
+                                  // Elements are defined below.
+
+                                  vertices 1 0.0 0.0 0.0 constraint 1
+      /* 4
+                                                                              vertices
+                                                                              on
+                                                                              plane
+                                                                            */
+      2 1.0 0.0 0.0 constraint 1 3 1 dsize 0.0 constraint 1 4 0.0 dsize 0.0 constraint 1 5 0.0 0.0 height
+          constraint 2 /* upper plate */
+      6 1.0 0.0 height constraint 2 7 1.0 dsize height +
+                    dsize* slope constraint 2 8 0.0 dsize height +
+                    dsize* slope constraint 2
+                    // 9   5 5 0.0 fixed   /* for lower plane */
+                    // 10  5 -1.0 0.0 fixed
+                    // 11 -1.0 -1.0 0.0 fixed
+                    // 12 -1.0  5 0.0 fixed
+                    // 13  5 5 height fixed   /* for lower plane */
+                    // 14  5 -1.0 height fixed
+                    // 15 -1.0 -1.0 height fixed
+                    // 16 -1.0  5 height fixed
+                    edges              /* given by endpoints and attribute */
+                    1 1 2 constraint 1 /* 4 edges on lower plate */
+                    2 2 3 constraint 1 3 3 4 constraint 1 4 4 1 constraint 1 5 5 6 constraint 2 /* upper plate */
+                    6 6 7 constraint 2 7 7 8 constraint 2 8 8 5 constraint 2 9 1 5 10 2 6 11 3 7 12 4 8
+                    // 13  9 10 no_refine  fixed  /* for lower plate */
+                    // 14 10 11 no_refine  fixed
+                    // 15 11 12 no_refine  fixed
+                    // 16 12  9 no_refine  fixed
+                    // 17 13 14 no_refine  fixed  /* for upper plate */
+                    // 18 14 15 no_refine  fixed
+                    // 19 15 16 no_refine  fixed
+                    // 20 16 13 no_refine  fixed
+
+                    faces /* given by oriented edge loop */
+                    1 1 10 -
+                    5 - 9 color lightblue 2 2 11 - 6 -
+                    10 color lightblue 3 3 12 - 7 - 11 color lightblue 4 4 9 -
+                    8 -
+                    12 color lightblue
+                        // 5  13 14 15  16  no_refine density 0 fixed /* lower
+                        // plate for display */ 6  17 18 19  20  no_refine
+                        // density 0 fixed /* upper plate for display */
+                        bodies /* one body, defined by its oriented faces */
+                    1 1 2 3 4 volume volu
+
+                        read
+                            // typical evolution
+
+                            // This identifies the triple lines for evolver.
+                            initcl : = {printf "no error yet";
+
+set vertex.vcl_up 0;
+set edge.ecl_up 0;
+set vertex.vcl 0;
+set edge.ecl 0;
+
+set facet.fcl_up 1;
+set vertex.vcl_b 0;
+set edge.ecl_b 0;
+set facet.fcl_b 1;
+foreach
+  vertex vv do if on_constraint 1 then {
+    set vv.vcl_b 1;
+    set vv.vcl 1;
+  };
+foreach
+  vertex vv do if on_constraint 2 then {
+    set vv.vcl_up 1;
+    set vv.vcl 1;
+  };
+foreach
+  edge ee do if on_constraint 1 then {
+    set ee.ecl_b 1;
+    set ee.ecl 1;
+  };
+foreach
+  edge ee do if on_constraint 2 then {
+    set ee.ecl_up 1;
+    set ee.ecl 1;
+  };
+set edges color red where ecl_up == 1;
+set edges color red where ecl_b == 1;
+
+// set facets color blue where fclup == 0;
+// set facets color blue where fclb == 0;
+}
+
+plotup : = {radiusmaxup1 : = 0;
+radiusmaxup2 : = 0;
+radiusmaxb1 : = 0;
+radiusmaxb2 : = 0;
+counter1 : = 0;
+counter2 : = 0;
+id1 : = 0;
+id2 : = 0;
+id3 : = 0;
+id4 : = 0;
+id5 : = 0;
+id6 : = 0;
+id7 : = 0;
+id8 : = 0;
+maxx2 : = -10000;
+maxyy2 : = -10000;
+minxx2 : = 100000;
+minyy2 : = 10000;
+maxx1 : = -10000;
+maxyy1 : = -10000;
+minxx1 : = 100000;
+minyy1 : = 10000;
+
+// foreach vertex do if on_constraint 2 then
+//{counter2:=counter2+1;
+// angleav2:=angleav2+angle;};
+// printf "%f    %f\n",height,angleav2/counter2 >>"angle_up.xls";
+//
+// foreach vertex do if on_constraint 1 then
+//{counter1:=counter1+1;
+// angleav1:=angleav1+angle;};
+// printf "%f    %f\n",height,angleav1/counter1 >>"angle_b.xls";
+
+foreach
+  vertex vv do if on_constraint 2 then {
+    if (vv.y < minyy2) then {
+      minyy2:
+        = vv.y;
+      id1:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 2 then {
+    if (vv.y > maxyy2) then {
+      maxyy2:
+        = vv.y;
+      id3:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 2 then {
+    if (vv.x < minxx2) then {
+      minxx2:
+        = vv.x;
+      id2:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 2 then {
+    if (vv.x > maxx2) then {
+      maxx2:
+        = vv.x;
+      id4:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+    if (vv.y < minyy1) then {
+      minyy1:
+        = vv.y;
+      id5:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+    if (vv.y > maxyy1) then {
+      maxyy1:
+        = vv.y;
+      id7:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+    if (vv.x < minxx1) then {
+      minxx1:
+        = vv.x;
+      id6:
+        = vv.id;
+      }
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+    if (vv.x > maxx1) then {
+      maxx1:
+        = vv.x;
+      id8:
+        = vv.id;
+      }
+  };
+
+printf "%f  %f  %f  %f  %f  %f  %f  %f  %f\n", height, minyy2, maxyy2, minyy1,
+    maxyy1, vertex[id1].angle, vertex[id3].angle, vertex[id5].angle,
+    vertex[id7].angle >> "frontcam.xls";
+
+printf "%f  %f  %f  %f  %f\n", height, maxx2 - minxx2,
+    (vertex[id2].angle + vertex[id4].angle) / 2, maxx1 - minxx1,
+    (vertex[id6].angle + vertex[id8].angle) / 2 >> "sidecam.xls";
+}
+
+plotcl : =
+
+             {foreach vertex vv do if on_constraint 1 then{
+
+                 printf "%f  %f  %f\n", vv.x, vv.y, vv.angle >> "xb.xls";
+}
+;
+foreach
+  vertex vv do if on_constraint 2 then {
+    printf "%f  %f  %f\n", vv.x, vv.y, vv.angle >> "xup.xls";
+  };
+}
+
+heightup : = {height : = height + incrim} heightdown
+    : = {height : = height - incrim}
+
+      cah : = {
+
+                // store old positions
+                set vertex oldx[1] x;
+set vertex oldx[2] y;
+set vertex oldx[3] z;
+
+// max and min advancing/receding friction forces (angle is an equilibrium CA)
+f_max_adv_up : = (cos(y_angle_up * pi / 180) - cos(adv_up * pi / 180));
+f_max_rec_up : = -(cos(y_angle_up * pi / 180) - cos(rec_up * pi / 180));
+delta_f_up : = -(cos(adv_up * pi / 180) - cos(rec_up * pi / 180));
+f_max_adv_b : = (cos(y_angle_b * pi / 180) - cos(adv_b * pi / 180));
+f_max_rec_b : = -(cos(y_angle_b * pi / 180) - cos(rec_b * pi / 180));
+delta_f_b : = -(cos(adv_b * pi / 180) - cos(rec_b * pi / 180));
+g;  // virtual move
+if
+  scale > 0 then {
+    foreach
+      vertex vv do if on_constraint 2 then {
+      // only consider vertices in the contact line (constraint 1)
+
+      // Test if one is in an advancing or receding situation
+      product_up:
+        = ((vv.__velocity[1]) * vv.vertexnormal[1] +
+           (vv.__velocity[2]) * vv.vertexnormal[2] +
+           (vv.__velocity[3]) * vv.vertexnormal[3]);
+        if (product_up < 0) then {
+          f_up:
+            = f_max_rec_up;  // we are in a receding situation
+          final_angle_up:
+            = rec_up;
+          product_up:
+            = -sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                    2 + (vv.__velocity[3]) ^ 2);
+          }
+        else {
+        f_up:
+          = f_max_adv_up;  // we are in an advancing situation
+        final_angle_up:
+          = adv_up;
+        product_up:
+          = sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                 2 + (vv.__velocity[3]) ^ 2);
+        };
+
+      displacement_up:
+        = abs(product_up);  // vertex virtual displacement
+      length0_up:
+        = 0;
+        foreach
+          vv.edge ee do if on_constraint 2 then {
+          length0_up:
+            = length0_up + ee.length;  // dl (differential contact line length)
+          };
+      force_per_length_up:
+        = 2 * displacement_up / length0_up;  // measure force per unit length
+        // from vertex virtual displacement
+        if (force_per_length_up < f_up)
+          then {  // maximum friction force is larger than measured force: the
+            // vertex remains fixed
+            vv.x : = vv.oldx[1];
+            vv.y : = vv.oldx[2];
+            vv.z : = vv.oldx[3];
+          angle_of_up:
+            = acos(-2 * product_up / length0_up + cos(y_angle_up * pi / 180)) *
+              180 / pi;  // new contact angle
+          }
+        else {  // maximum friction force is smaller than measured force: the
+          // vertex is displaced accordingly
+          vv.x : = vv.oldx[1] + (vv.x - vv.oldx[1]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+          vv.y : = vv.oldx[2] + (vv.y - vv.oldx[2]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+          vv.z : = vv.oldx[3] + (vv.z - vv.oldx[3]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+        angle_of_up:
+          = final_angle_up;
+        };
+        vv.angle : = angle_of_up;
+      };
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+  // only consider vertices in the contact line (constraint 1)
+
+  // Test if one is in an advancing or receding situation
+  product_b:
+    = ((vv.__velocity[1]) * vv.vertexnormal[1] +
+       (vv.__velocity[2]) * vv.vertexnormal[2] +
+       (vv.__velocity[3]) * vv.vertexnormal[3]);
+    if (product_b < 0) then {
+      f_b:
+        = f_max_rec_b;  // we are in a receding situation
+      final_angle_b:
+        = rec_b;
+      product_b:
+        = -sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                2 + (vv.__velocity[3]) ^ 2);
+      }
+    else {
+    f_b:
+      = f_max_adv_b;  // we are in an advancing situation
+    final_angle_b:
+      = adv_b;
+    product_b:
+      = sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+             2 + (vv.__velocity[3]) ^ 2);
+    };
+
+  displacement_b:
+    = abs(product_b);  // vertex virtual displacement
+  length0_b:
+    = 0;
+    foreach
+      vv.edge ee do if on_constraint 1 then {
+      length0_b:
+        = length0_b + ee.length;  // dl (differential contact line length)
+      };
+  force_per_length_b:
+    = 2 * displacement_b / length0_b;  // measure force per unit length from
+    // vertex virtual displacement
+    if (force_per_length_b < f_b)
+      then {  // maximum friction force is larger than measured force: the
+        // vertex remains fixed
+        vv.x : = vv.oldx[1];
+        vv.y : = vv.oldx[2];
+        vv.z : = vv.oldx[3];
+      angle_of_b:
+        = acos(-2 * product_b / length0_b + cos(y_angle_b * pi / 180)) * 180 /
+          pi;  // new contact angle
+      }
+    else {  // maximum friction force is smaller than measured force: the vertex
+      // is displaced accordingly
+      vv.x : = vv.oldx[1] + (vv.x - vv.oldx[1]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+      vv.y : = vv.oldx[2] + (vv.y - vv.oldx[2]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+      vv.z : = vv.oldx[3] + (vv.z - vv.oldx[3]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+    angle_of_b:
+      = final_angle_b;
+    };
+    vv.angle : = angle_of_b;
+  };
+}
+;
+
+cav : = {
+
+          // store old positions
+          set vertex oldx[1] x;
+set vertex oldx[2] y;
+set vertex oldx[3] z;
+
+// max and min advancing/receding friction forces (angle is an equilibrium CA)
+f_max_adv_up : = (cos(y_angle_up * pi / 180) - cos(adv_up * pi / 180));
+f_max_rec_up : = -(cos(y_angle_up * pi / 180) - cos(rec_up * pi / 180));
+delta_f_up : = -(cos(adv_up * pi / 180) - cos(rec_up * pi / 180));
+
+f_max_adv_b : = (cos(y_angle_b * pi / 180) - cos(adv_b * pi / 180));
+f_max_rec_b : = -(cos(y_angle_b * pi / 180) - cos(rec_b * pi / 180));
+delta_f_b : = -(cos(adv_b * pi / 180) - cos(rec_b * pi / 180));
+V;  // virtual move
+if
+  scale > 0 then {
+    foreach
+      vertex vv do if on_constraint 2 then {
+      // only consider vertices in the contact line (constraint 1)
+
+      // Test if one is in an advancing or receding situation
+      product_up:
+        = ((vv.__velocity[1]) * vv.vertexnormal[1] +
+           (vv.__velocity[2]) * vv.vertexnormal[2] +
+           (vv.__velocity[3]) * vv.vertexnormal[3]);
+        if (product_up < 0) then {
+          f_up:
+            = f_max_rec_up;  // we are in a receding situation
+          final_angle_up:
+            = rec_up;
+          product_up:
+            = -sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                    2 + (vv.__velocity[3]) ^ 2);
+          }
+        else {
+        f_up:
+          = f_max_adv_up;  // we are in an advancing situation
+        final_angle_up:
+          = adv_up;
+        product_up:
+          = sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                 2 + (vv.__velocity[3]) ^ 2);
+        };
+
+      displacement_up:
+        = abs(product_up);  // vertex virtual displacement
+      length0_up:
+        = 0;
+        foreach
+          vv.edge ee do if on_constraint 2 then {
+          length0_up:
+            = length0_up + ee.length;  // dl (differential contact line length)
+          };
+      force_per_length_up:
+        = 2 * displacement_up / length0_up;  // measure force per unit length
+        // from vertex virtual displacement
+        if (force_per_length_up < f_up)
+          then {  // maximum friction force is larger than measured force: the
+            // vertex remains fixed
+            vv.x : = vv.oldx[1];
+            vv.y : = vv.oldx[2];
+            vv.z : = vv.oldx[3];
+          angle_of_up:
+            = acos(-2 * product_up / length0_up + cos(y_angle_up * pi / 180)) *
+              180 / pi;  // new contact angle
+          }
+        else {  // maximum friction force is smaller than measured force: the
+          // vertex is displaced accordingly
+          vv.x : = vv.oldx[1] + (vv.x - vv.oldx[1]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+          vv.y : = vv.oldx[2] + (vv.y - vv.oldx[2]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+          vv.z : = vv.oldx[3] + (vv.z - vv.oldx[3]) *
+                                    (force_per_length_up - f_up) /
+                                    force_per_length_up;
+        angle_of_up:
+          = final_angle_up;
+        };
+        vv.angle : = angle_of_up;
+      };
+  };
+foreach
+  vertex vv do if on_constraint 1 then {
+  // only consider vertices in the contact line (constraint 1)
+
+  // Test if one is in an advancing or receding situation
+  product_b:
+    = ((vv.__velocity[1]) * vv.vertexnormal[1] +
+       (vv.__velocity[2]) * vv.vertexnormal[2] +
+       (vv.__velocity[3]) * vv.vertexnormal[3]);
+    if (product_b < 0) then {
+      f_b:
+        = f_max_rec_b;  // we are in a receding situation
+      final_angle_b:
+        = rec_b;
+      product_b:
+        = -sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+                2 + (vv.__velocity[3]) ^ 2);
+      }
+    else {
+    f_b:
+      = f_max_adv_b;  // we are in an advancing situation
+    final_angle_b:
+      = adv_b;
+    product_b:
+      = sqrt((vv.__velocity[1]) ^ 2 + (vv.__velocity[2]) ^
+             2 + (vv.__velocity[3]) ^ 2);
+    };
+
+  displacement_b:
+    = abs(product_b);  // vertex virtual displacement
+  length0_b:
+    = 0;
+    foreach
+      vv.edge ee do if on_constraint 1 then {
+      length0_b:
+        = length0_b + ee.length;  // dl (differential contact line length)
+      };
+  force_per_length_b:
+    = 2 * displacement_b / length0_b;  // measure force per unit length from
+    // vertex virtual displacement
+    if (force_per_length_b < f_b)
+      then {  // maximum friction force is larger than measured force: the
+        // vertex remains fixed
+        vv.x : = vv.oldx[1];
+        vv.y : = vv.oldx[2];
+        vv.z : = vv.oldx[3];
+      angle_of_b:
+        = acos(-2 * product_b / length0_b + cos(y_angle_b * pi / 180)) * 180 /
+          pi;  // new contact angle
+      }
+    else {  // maximum friction force is smaller than measured force: the vertex
+      // is displaced accordingly
+      vv.x : = vv.oldx[1] + (vv.x - vv.oldx[1]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+      vv.y : = vv.oldx[2] + (vv.y - vv.oldx[2]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+      vv.z : = vv.oldx[3] + (vv.z - vv.oldx[3]) * (force_per_length_b - f_b) /
+                                force_per_length_b;
+    angle_of_b:
+      = final_angle_b;
+    };
+    vv.angle : = angle_of_b;
+  };
+}
+;
+
+gogo : = {r 3;
+cah 400;
+cav 20;
+r;
+u;
+cav 20;
+cah 500;
+}
+
+fixitdown : =
+
+                {
+
+                    foreach vertex vv do if on_constraint 2 then
+
+                    {
+
+                      vv.y : = vv.y - incrim * cos(s_angle * pi / 180) *
+                                          sin(s_angle * pi / 180);
+vv.z : = vv.z - incrim * (sin(s_angle * pi / 180)) ^ 2;
+}
+;
+}
+fixitup : =
+
+              {
+
+                  foreach vertex vv do if on_constraint 2 then
+
+                  {
+
+                    vv.y : = vv.y + incrim * cos(s_angle * pi / 180) *
+                                        sin(s_angle * pi / 180);
+vv.z : = vv.z + incrim * (sin(s_angle * pi / 180)) ^ 2;
+}
+;
+}
+
+moveitup : = {heightup;
+fixitup
+}
+moveitdown : = {heightdown;
+fixitdown
+}
+
+gogoup : = {moveitup;
+u 2;
+cav 3;
+cah 50;
+plotup;
+}
+
+gogodown : = {moveitdown;
+u 2;
+cav 3;
+cah 50;
+plotup;
+}
