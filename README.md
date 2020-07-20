@@ -2,8 +2,6 @@
 
 A Surface Evolver model for the simulation of the stability and motion of a liquid bridge between nonparallel surfaces with Contact Angle Hysteresis (CAH).
 
-![Liquid bridge between two nonparallel hydrophilic surfaces](./imgs/bridge.png =250x)
-
 <p align="center">
 
 <img src="./imgs/bridge.png" alt="Liquid bridge between two nonparallel hydrophilic surfaces" width="500"/>
